@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تتبع مشروع فيديو EMC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Chosen Palette: Corporate Blue & Slate -->
+    <!-- Application Structure Plan: تم تصميم التطبيق كلوحة تحكم لمشروع إنشاء الفيديو. يتضمن شريط تنقل علوي ثابت للانتقال بين الأقسام الرئيسية. يبدأ بقسم تقديمي للمشروع، يليه قسم "ملخص التقدم" الذي يعرض رسمًا بيانيًا دائريًا يوضح حالة المشروع بشكل عام (مكتمل، قيد التنفيذ، لم يبدأ). ثم يأتي القسم الرئيسي "خطوات المشروع" الذي يعرض كل خطوة من مراحل إنشاء الفيديو في بطاقات منفصلة. كل بطاقة تحتوي على وصف للخطوة، حالتها الحالية، وأزرار تفاعلية لتغيير الحالة (بدء، إنجاز، تعليق). تم اختيار هذا الهيكل لتوفير نظرة عامة سريعة على حالة المشروع وتفاصيله، مع تمكين التفاعل المباشر لتحديث التقدم، مما يعزز سهولة الاستخدام وتتبع المشروع. المهام الإضافية (الإعلان والتهنئة) تم دمجها كخطوات منفصلة داخل قسم "خطوات المشروع" لضمان تتبعها ضمن نفس المنظومة، مع تحديد المهام لطاقم العمل لكل منها. -->
+    <!-- Visualization & Content Choices:
+        - حالة المشروع الكلية -> Goal: Inform, Track Progress -> Viz: Donut Chart -> Interaction: Static (reflects current state) -> Justification: يعطي نظرة سريعة وبديهية على نسبة الإنجاز والخطوات المتبقية. -> Library: Chart.js.
+        - خطوات المشروع الفردية -> Goal: Inform, Track Status, Allow Interaction -> Viz: Interactive Cards -> Interaction: Buttons to toggle status (بدء، إنجاز، تعليق) -> Justification: توفر تفاصيل واضحة لكل خطوة وتسمح بتحديث مباشر لحالتها، مما يجعل لوحة التحكم عملية. -> Library: Tailwind CSS, Vanilla JS.
+        - المحتوى النصي (وصف المشروع، تفاصيل الخطوات) -> Goal: Inform -> Viz: Styled Text Blocks -> Interaction: Static -> Justification: عرض مباشر للمعلومات الأساسية لكل قسم وخطوة. -> Library: Tailwind CSS.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            scroll-behavior: smooth;
+        }
+        .rtl-chart-tooltip {
+            direction: rtl;
+            text-align: right;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            max-height: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        @media (min-width: 768px) {
+            .chart-container { height: 350px; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <!-- Header & Navigation -->
+    <header id="header" class="bg-white shadow-md sticky top-0 z-50">
+        <nav class="container mx-auto px-6 py-3 flex justify-between items-center">
+            <div class="text-2xl font-bold text-blue-900">
+                لوحة تتبع مشروع الفيديو
+            </div>
+            <div class="hidden md:flex space-x-8 space-x-reverse">
+                <a href="#overview" class="text-slate-600 hover:text-blue-700">نظرة عامة</a>
+                <a href="#progress-summary" class="text-slate-600 hover:text-blue-700">ملخص التقدم</a>
+                <a href="#project-steps" class="text-slate-600 hover:text-blue-700">خطوات المشروع</a>
+            </div>
+            <div class="md:hidden">
+                <button id="mobile-menu-button" class="text-slate-600 hover:text-blue-700 focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+                </button>
+            </div>
+        </nav>
+        <div id="mobile-menu" class="hidden md:hidden">
+            <a href="#overview" class="block py-2 px-4 text-sm text-slate-600 hover:bg-blue-50">نظرة عامة</a>
+            <a href="#progress-summary" class="block py-2 px-4 text-sm text-slate-600 hover:bg-blue-50">ملخص التقدم</a>
+            <a href="#project-steps" class="block py-2 px-4 text-sm text-slate-600 hover:bg-blue-50">خطوات المشروع</a>
+        </div>
+    </header>
+
+    <main>
+        <!-- Project Overview Section -->
+        <section id="overview" class="py-20 bg-blue-900 text-white">
+            <div class="container mx-auto px-6 text-center">
+                <h1 class="text-5xl md:text-6xl font-bold mb-4">لوحة تحكم مهام مشروع EMC</h1>
+                <p class="text-xl md:text-2xl font-light max-w-4xl mx-auto">تتبع شامل لجميع مراحل إعداد وإنتاج الفيديو التعريفي لشركة EMC، بالإضافة إلى مهام التصميم الرسومي الأخرى.</p>
+                <p class="text-lg mt-4 max-w-4xl mx-auto">هذه اللوحة تهدف إلى توضيح كل خطوة في عملية الإنتاج والتصميم، وتتبع حالتها (مكتمل، قيد التنفيذ، أو لم يبدأ بعد) لتوفير شفافية كاملة حول تقدم المشروع.</p>
+            </div>
+        </section>
+
+        <!-- Progress Summary Section -->
+        <section id="progress-summary" class="py-20 bg-white">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl font-bold text-blue-900">ملخص التقدم الإجمالي</h2>
+                    <p class="text-lg text-slate-600 mt-4 max-w-3xl mx-auto">نظرة سريعة على الحالة الحالية لجميع مهام المشروع، مع توضيح نسبة الخطوات المنجزة، قيد التنفيذ، والخطوات التي لم تبدأ بعد.</p>
+                </div>
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <div class="space-y-8 text-center md:text-right">
+                        <div class="bg-blue-50 p-6 rounded-lg shadow-inner border border-blue-200">
+                            <h3 class="text-2xl font-bold text-blue-800 mb-2">حالة المشروع الكلية</h3>
+                            <p class="text-slate-700 text-lg">هذا الرسم البياني يوضح النسبة المئوية للمهام المكتملة، وتلك التي لا تزال قيد التنفيذ، والمهام التي لم نبدأ بها بعد عبر المشروع بأكمله.</p>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-bold text-blue-800 mb-4 text-center">نسبة الإنجاز</h3>
+                        <div class="chart-container relative">
+                             <canvas id="progressChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Project Steps Section -->
+        <section id="project-steps" class="py-20 bg-slate-100">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-12">
+                    <h2 class="text-4xl font-bold text-blue-900">تفاصيل مهام المشروع</h2>
+                    <p class="text-lg text-slate-600 mt-4 max-w-3xl mx-auto">استكشف الخطوات المفصلة لكل مهمة، وتفاصيل المحتوى، ومهام طاقم العمل، وقم بتحديث حالتها مع تقدم العمل.</p>
+                </div>
+                <div id="steps-container" class="grid lg:grid-cols-2 xl:grid-cols-3 gap-8">
+                    <!-- Project steps will be rendered here by JavaScript -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-slate-400 py-6">
+        <div class="container mx-auto px-6 text-center">
+            <p>&copy; 2025 لوحة تتبع مشروع الفيديو والتصميم. جميع الحقوق محفوظة.</p>
+        </div>
+    </footer>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Mobile menu toggle
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const mobileMenu = document.getElementById('mobile-menu');
+        mobileMenuButton.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+
+        // Close mobile menu on link click
+        document.querySelectorAll('#mobile-menu a').forEach(link => {
+            link.addEventListener('click', () => {
+                mobileMenu.classList.add('hidden');
+            });
+        });
+
+        // Chart.js RTL Tooltip Plugin (to ensure RTL display in tooltips)
+        const rtlTooltip = {
+            id: 'rtlTooltip',
+            afterDraw: chart => {
+                const tooltip = chart.tooltip;
+                if (tooltip && tooltip.active && tooltip.active.length) {
+                    const tooltipEl = chart.canvas.parentNode.querySelector('.chartjs-tooltip');
+                    if (tooltipEl) {
+                       tooltipEl.style.direction = 'rtl';
+                    }
+                }
+            }
+        };
+
+        // Project Steps Data
+        const projectSteps = [
+            {
+                id: 'video_step1',
+                title: 'الخطوة 1: إعداد السيناريو النصي النهائي (الفيديو)',
+                description: 'هذه هي المرحلة التأسيسية للمشروع، حيث يتم تحويل الأفكار الأولية والمعلومات عن شركة EMC إلى نص مكتوب مفصل يوجه عملية إنتاج الفيديو بأكملها. السيناريو يشمل المحتوى اللفظي (التعليق الصوتي) والنصوص المرئية التي ستظهر على الشاشة، مع تحديد توقيتات تقديرية لكل مشهد وتوضيح العناصر البصرية المطلوبة.',
+                status: 'completed', // تم التحديث
+                details: {
+                    content: {
+                        intro: 'المقدمة: "البداية" (0:00 - 0:15) - العناصر البصرية: شاشة سوداء أو خلفية تجريدية بألوان EMC، ظهور شعار EMC بشكل تدريجي أنيق ومتحرك يتبعه نص "شريككم الاستراتيجي لقطاع الطاقة." - التعليق الصوتي: لا يوجد، فقط موسيقى افتتاحية قوية.',
+                        whoWeAre: 'من نحن؟: "جذور قوية، رؤية طموحة" (0:15 - 0:55) - العناصر البصرية: لقطات أرشيفية/صور لمرافق نفطية، رسوم بيانية متحركة لهيكل رأس المال (50% Aibel، 50% شركات EGPC)، صور لمقرات EMC وفرق العمل ولقطات بانورامية لمصر، مع نصوص "أكثر من 25 عامًا من الخبرة."، "شركة مساهمة مصرية."، "هيكل رأس المال: Aibel (50%) وشركات EGPC التابعة (50%)."، "رؤيتنا: الريادة في حلول الصيانة الشاملة."، "رسالتنا: تمكين عملائنا بالتميز والابتكار." - التعليق الصوتي: "منذ نوفمبر عام 1997، بدأت شركة EMC مسيرتها كشركة مساهمة مصرية رائدة... نسعى لتحقيق رؤيتنا في أن نكون المزود الأمثل لحلول الصيانة المتكاملة. رسالتنا هي تمكين عملائنا بأحدث التقنيات والخبرات لضمان استمرارية أعمالهم ونجاحها."',
+                        services: 'خدماتنا: "حلول متكاملة، جودة لا تضاهى" (0:55 - 1:55) - العناصر البصرية: لقطات ديناميكية لأعمال صيانة على معدات صناعية، رسوم متحركة لعمليات التعديل والإنشاءات، صور لفرق عمل EMC بجدية، لقطات لمعدات فحص متطورة ورسوم متحركة لآليات سلامة الأصول، لقطات لمختبرات وورش ومعدات نقل ثقيل. نصوص: "الصيانة، التعديل، الإنشاءات."، "سلامة الأصول."، "خدمات صناعية متخصصة أخرى." - التعليق الصوتي: "تقدم EMC مجموعة شاملة من الخدمات الأساسية لقطاع البترول... نضمن كفاءة أصولكم التشغيلية... نولي اهتمامًا بالغًا لسلامة الأصول... نقدم خدمات صناعية متخصصة تلبي الاحتياجات الفريدة لعملائنا بأعلى معايير الجودة والاحترافية."',
+                        projects: 'أبرز المشاريع والإنجازات: "قصص نجاح، شهادات تقدير" (1:55 - 2:40) - العناصر البصرية: عرض سريع لمشاريع مختارة (صور/فيديو للمشروع، نص "اسم المشروع: [عنوان]"، "العميل: [اسم]"، "المدة: [تاريخ]"), لقطات سريعة ومتحركة لخطابات التقدير. نصوص: "سجل حافل بالإنجازات... ثقة عملائنا هي سر نجاحنا." - التعليق الصوتي: "نفخر بسجلنا الحافل بالمشاريع الناجحة، التي تعكس قدراتنا وخبراتنا العميقة في هذا المجال... هذه الإنجازات ليست سوى بعض من قصص نجاحنا التي حظينا بها بتقدير عملائنا الكرام..."',
+                        conclusion: 'الخاتمة: "مستقبل من النمو والشراكة" (2:40 - 3:00) - العناصر البصرية: مشهد متحرك لبيانات الاتصال (الموقع، الهاتف، البريد الإلكتروني)، ظهور شعار EMC مع نص "حيث تلتقي الخبرة بالابتكار لخدمة قطاع الطاقة." - التعليق الصوتي: "تواصل EMC التزامها بتعزيز قطاع الطاقة في مصر والمنطقة... لمزيد من المعلومات... تفضلوا بزيارة موقعنا الإلكتروني أو الاتصال بفريق عملنا. EMC... نحو مستقبل مشرق للطاقة في مصر."'
+                    },
+                    crewTasks: {
+                        scriptwriter: 'كاتب السيناريو/مُعد المحتوى: صياغة النصوص اللفظية والبصرية، تحديد التوقيتات، والتأكد من وضوح الرسالة وتناسقها.',
+                        projectCoordinator: 'منسق المشروع/المنتج: الإشراف على جمع المعلومات من EMC، ومراجعة السيناريو واعتماده من الإدارة.',
+                        uiuxDesigner: 'مصمم UI/UX (ملاحظة: بالرغم من أن هذا الفيديو ليس تطبيقًا، فإن مبادئ التصميم البصري الجذاب تنطبق هنا): التأكد من أن النصوص البصرية المصممة جذابة وتتوافق مع هوية EMC.'
+                    }
+                },
+                expectedOutcome: 'سيناريو نهائي ومفصل للفيديو، يتضمن جميع النصوص (تعليق صوتي وبصري) والتوجيهات البصرية لكل مشهد، مع توقيتات تقديرية. هذا السيناريو سيكون الدليل الرئيسي لجميع المراحل اللاحقة.'
+            },
+            {
+                id: 'video_step2',
+                title: 'الخطوة 2: جمع الأصول البصرية (للفيديو)',
+                description: 'في هذه الخطوة، يتم تجميع وتجهيز جميع الصور والفيديوهات عالية الجودة التي ستُستخدم في الفيديو. يشمل ذلك لقطات لمقرات EMC، فرق العمل، مواقع المشاريع (مثل منصات النفط، المرافق الصناعية، الورش)، المعدات المتطورة المستخدمة، وأي صور تاريخية أو رسوم بيانية توضيحية تدعم رسالة الفيديو. يجب أن تكون الأصول ذات صلة بالسيناريو وتدعم الرسالة البصرية.',
+                status: 'in-progress', // تم التحديث
+                details: {
+                    content: {
+                        general: 'تجميع أصول بصرية عالية الجودة: لقطات من الداخل والخارج لمقرات EMC، صور للمهندسين والفنيين أثناء العمل، لقطات جوية أو أرضية لمواقع المشاريع البترولية التي قامت EMC بخدمتها، صور للمعدات الثقيلة، صور للمختبرات والورش، ونسخ رقمية من خطابات التقدير.'
+                    },
+                    crewTasks: {
+                        assetGatherer: 'مصور/جامع الأصول: البحث عن الصور والفيديوهات المطلوبة، تصوير لقطات جديدة إذا لزم الأمر، تنظيم الأصول في مجلدات واضحة.',
+                        projectCoordinator: 'منسق المشروع/المنتج: التنسيق مع EMC للحصول على الأصول المتاحة، ومراجعة جودتها وملائمتها للسيناريو.',
+                        editor: 'مونتير: مراجعة الأصول الأولية واقتراح أي لقطات إضافية مطلوبة للمونتاج.'
+                    }
+                },
+                expectedOutcome: 'مكتبة كاملة ومنظمة من الصور ومقاطع الفيديو عالية الدقة، مصنفة حسب أقسام الفيديو وجاهزة للاستخدام في المونتاج. كل الأصول يجب أن تكون متوافقة مع متطلبات الجودة الفنية.'
+            },
+            {
+                id: 'video_step3',
+                title: 'الخطوة 3: توليد التعليق الصوتي بالذكاء الاصطناعي (للفيديو)',
+                description: 'تُعد هذه الخطوة حيوية لإضفاء الطابع الاحترافي على الفيديو. يتم فيها تحويل نصوص التعليق الصوتي النهائية من السيناريو إلى ملفات صوتية بشرية باستخدام أدوات الذكاء الاصطناعي المتخصصة (مثل Murf.ai أو ElevenLabs). يجب اختيار الصوت المناسب (ذكر/أنثى، نبرة الصوت، سرعة الكلام، واللهجة) ليتناسب مع الطابع المؤسسي الرسمي لشركة EMC.',
+                status: 'in-progress', // تم التحديث
+                details: {
+                    content: {
+                        narrationGeneration: 'يتم إدخال النص الخاص بالتعليق الصوتي لكل قسم من السيناريو إلى أداة الذكاء الاصطناعي. على سبيل المثال: "منذ نوفمبر عام 1997، بدأت شركة EMC مسيرتها كشركة مساهمة مصرية رائدة، بهدف تقديم خدمات متكاملة لقطاع الطاقة الحيوي..."'
+                    },
+                    crewTasks: {
+                        audioEngineer: 'مهندس صوت/مصمم صوت: اختيار أداة الذكاء الاصطناعي المناسبة، تجربة الأصوات المختلفة، ضبط إعدادات النطق (السرعة، النبرة، الفواصل) لضمان طبيعية الصوت واحترافيته، وتصدير الملفات الصوتية النهائية بجودة عالية (MP3 أو WAV).',
+                        projectCoordinator: 'منسق المشروع/المنتج: مراجعة جودة التعليق الصوتي المنتج والموافقة عليه.'
+                    }
+                },
+                expectedOutcome: 'ملفات صوتية منفصلة عالية الجودة (MP3/WAV) للتعليق الصوتي لكل قسم من الفيديو، جاهزة للدمج مع العناصر البصرية والموسيقى.'
+            },
+            {
+                id: 'video_step4',
+                title: 'الخطوة 4: توليد الموسيقى التصويرية بالذكاء الاصطناعي (للفيديو)',
+                description: 'في هذه الخطوة، يتم إنشاء مقطوعات موسيقية أصلية باستخدام أدوات توليد الموسيقى بالذكاء الاصطناعي (مثل Soundraw أو AIVA). يجب أن تتناسب الموسيقى مع المزاج العام لكل قسم من الفيديو: موسيقى ملهمة للمقدمة، هادئة لقسم "من نحن؟"، ديناميكية لـ "خدماتنا"، حماسية لـ "المشاريع والإنجازات"، وموسيقى تتلاشى تدريجياً في الخاتمة.',
+                status: 'in-progress', // تم التحديث
+                details: {
+                    content: {
+                        musicSelection: 'تحديد نوع الموسيقى والمزاج المطلوبين لكل قسم (مثل: "Inspiring Corporate" للمقدمة، "Calm Ambient" لقسم "من نحن؟"، "Energetic Industrial" لقسم "خدماتنا").'
+                    },
+                    crewTasks: {
+                        audioEngineer: 'مهندس صوت/مصمم صوت: استخدام أدوات الذكاء الاصطناعي لتوليد المقطوعات الموسيقية، اختيار أفضل المقطوعات التي تتناسب مع الأجواء المطلوبة وتوقيتات الفيديو، وتصديرها بجودة عالية.',
+                        projectCoordinator: 'منسق المشروع/المنتج: مراجعة المقطوعات الموسيقية واختيار الأنسب منها.'
+                    }
+                },
+                expectedOutcome: 'ملفات صوتية للموسيقى التصويرية عالية الجودة لكل قسم من الفيديو، خالية من حقوق الملكية الفكرية وجاهزة للدمج.'
+            },
+            {
+                id: 'video_step5',
+                title: 'الخطوة 5: دمج المحتوى (المونتاج المبدئي للفيديو)',
+                description: 'هذه هي المرحلة التي يتم فيها تجميع كل الأجزاء معًا. يتم دمج الأصول البصرية (الصور والفيديوهات) مع ملفات التعليق الصوتي والموسيقى التصويرية في برنامج مونتاج احترافي (مثل Adobe Premiere Pro أو DaVinci Resolve). تتضمن هذه الخطوة مزامنة الصوت مع الصورة بدقة، وتطبيق الانتقالات الأساسية بين المشاهد، وإضافة النصوص المرئية والرسومات المتحركة البسيطة (Motion Graphics) وفقاً لتوجيهات السيناريو.',
+                status: 'in-progress', // تم التحديث
+                details: {
+                    content: {
+                        editingProcess: 'مزامنة دقيقة للتعليق الصوتي مع المشاهد، دمج النصوص البصرية (العناوين، بيانات المشاريع، شعارات الشركات)، تطبيق تأثيرات الانتقال بين المشاهد (مثل الـ dissolves، fades، أو wipes)، ضبط مستويات الصوت بين التعليق والموسيقى.'
+                    },
+                    crewTasks: {
+                        editor: 'مونتير/مصمم رسوم متحركة: استيراد جميع الأصول إلى برنامج المونتاج، ترتيب المشاهد وفقاً للسيناريو، مزامنة الصوت والصورة، إضافة النصوص والرسومات المتحركة، تطبيق الانتقالات، وإنشاء مسودة أولية للفيديو.',
+                        projectCoordinator: 'منسق المشروع/المنتج: متابعة عملية المونتاج والتأكد من مطابقتها للسيناريو والرؤية.'
+                    }
+                },
+                expectedOutcome: 'مسودة أولية للفيديو (First Draft) جاهزة للمراجعة، تتضمن جميع العناصر المرئية والصوتية والنصوص الأساسية، مع مونتاج مبدئي.'
+            },
+            {
+                id: 'video_step6',
+                title: 'الخطوة 6: المراجعة والتعديلات النهائية (للفيديو)',
+                description: 'بعد الانتهاء من المسودة الأولية، يتم عرضها على الجهات المعنية في EMC (مثل إدارة التسويق أو الإدارة العليا) لجمع الملاحظات والمقترحات. بناءً على هذه الملاحظات، يتم تطبيق التعديلات اللازمة على المونتاج، الرسومات المتحركة، تصحيح الألوان، وضبط مستويات الصوت لضمان الجودة النهائية ورضا العميل عن المنتج. قد تتطلب هذه المرحلة عدة جولات من المراجعة.',
+                status: 'not-started',
+                details: {
+                    content: {
+                        feedbackLoop: 'جمع الملاحظات على التوقيت، وضوح النصوص، جودة الصور، مستوى الصوت، وتناسق الألوان. تطبيق التعديلات مثل قص مشاهد، تغيير ترتيبها، تعديل رسوم متحركة، أو إعادة تسجيل أجزاء من التعليق الصوتي إذا لزم الأمر.'
+                    },
+                    crewTasks: {
+                        projectCoordinator: 'منسق المشروع/المنتج: تنظيم جلسات المراجعة، جمع الملاحظات وتلخيصها، والتواصل مع فريق الإنتاج لتطبيق التعديلات.',
+                        editor: 'مونتير/مصمم رسوم متحركة: تطبيق جميع التعديلات المطلوبة على الفيديو، والتأكد من أن النسخة النهائية خالية من الأخطاء الفنية.'
+                    }
+                },
+                expectedOutcome: 'نسخة نهائية معتمدة من الفيديو (Final Approved Version) بعد تطبيق جميع التعديلات والملاحظات من EMC.'
+            },
+            {
+                id: 'video_step7',
+                title: 'الخطوة 7: تصدير الفيديو النهائي (للفيديو)',
+                description: 'الخطوة الأخيرة في المشروع هي تصدير الفيديو النهائي بجودة عالية (HD أو 4K) وبالصيغ المطلوبة (مثل MP4، MOV) ليكون جاهزًا للاستخدام على مختلف المنصات. يجب مراعاة متطلبات كل منصة (مثل YouTube، الموقع الإلكتروني للشركة، عروض تقديمية داخلية) من حيث حجم الملف، دقة الوضوح، ومعدل الإطارات.',
+                status: 'not-started',
+                details: {
+                    content: {
+                        exportSettings: 'اختيار صيغة التصدير المناسبة (H.264 MP4 هو الأكثر شيوعاً)، دقة الوضوح (1080p HD أو 4K)، معدل الإطارات (24fps, 25fps, 30fps)، ومعدل البت (Bitrate) لضمان جودة عالية وحجم ملف مناسب.'
+                    },
+                    crewTasks: {
+                        editor: 'مونتير/مصمم رسوم متحركة: تصدير الفيديو بالصيغ والجودات المطلوبة، والتأكد من توافقه مع متطلبات النشر على المنصات المختلفة. إجراء اختبار أخير للفيديو على عدة أجهزة وشاشات.',
+                        projectCoordinator: 'منسق المشروع/المنتج: استلام النسخ النهائية من الفيديو والتأكد من تسليمها للجهات المعنية في EMC للنشر.'
+                    }
+                },
+                expectedOutcome: 'الفيديو النهائي الجاهز للنشر والتوزيع، بصيغ متعددة إذا لزم الأمر، لجميع المنصات المستهدفة.'
+            },
+            {
+                id: 'design_task1',
+                title: 'مهمة تصميم 1: إعداد إعلان مجلة EMC',
+                description: 'تصميم إعلان جذاب واحترافي لشركة EMC ليتم نشره في مجلة مصرية، مع التركيز على الهوية البصرية للشركة وخدماتها الرئيسية. يجب أن يكون الإعلان ملفتًا للنظر ويعبر عن قوة الشركة وموثوقيتها في قطاع الطاقة.',
+                status: 'not-started', // الافتراضي للجديد
+                notes: 'التركيز على الوضوح، الجاذبية البصرية، واستخدام شعار EMC وألوانها الأساسية بشكل فعال. يجب أن يتضمن الإعلان عنوانًا رئيسيًا جذابًا، نصًا موجزًا عن الخدمات، وصورًا عالية الجودة ذات صلة، ومعلومات اتصال واضحة. تأكد من مراجعة الأبعاد ومتطلبات الطباعة للمجلة المستهدفة. يجب أن يتضمن دعوة لاتخاذ إجراء (Call to Action) واضحة.',
+                details: {
+                    content: {
+                        keyElements: 'الشعار: شعار EMC واضحاً وموضعاً بشكل بارز. العنوان الرئيسي: يجب أن يكون جذاباً وموجزاً (مثال: "EMC: شريككم الموثوق لصيانة البترول وتنمية الطاقة في مصر."). النص الأساسي: نص مختصر يبرز أهم خدمات الشركة (الصيانة، التعديل، الإنشاءات، سلامة الأصول) ونقاط قوتها وخبرتها الطويلة (أكثر من 25 عاماً). صورة/رسوم توضيحية: صورة جذابة لمشروع نفطي أو مرافق EMC (يمكن استخدام صور عالية الجودة من الأصول التي تم جمعها). معلومات الاتصال: الموقع الإلكتروني، أرقام الاتصال، والبريد الإلكتروني.',
+                        designPrinciples: 'الالتزام بالهوية البصرية لـ EMC (الأزرق الداكن، الأزرق الفاتح، الرمادي). البساطة والوضوح، تجنب الازدحام. خطوط واضحة وسهلة القراءة. استخدام مساحات بيضاء كافية.'
+                    },
+                    crewTasks: {
+                        graphicDesigner: 'مصمم جرافيك: مسؤول عن إعداد التصميمات الأولية للإعلان، تطبيق الملاحظات والتعديلات، وتجهيز الملفات النهائية بجودة عالية للطباعة وفقاً لمواصفات المجلة.',
+                        marketingTeam: 'فريق التسويق/العلاقات العامة: مسؤول عن توفير المحتوى النصي المعتمد للإعلان، ومراجعة التصميمات الأولية واعتمادها، والتنسيق مع المجلة للنشر.',
+                        copywriter: 'كاتب المحتوى: صياغة العنوان الرئيسي والنصوص القصيرة بشكل جذاب ومؤثر.'
+                    }
+                },
+                expectedOutcome: 'ملف إعلان نهائي عالي الجودة (مثل PDF أو AI) جاهز للطباعة والنشر في المجلة، ومعتمد من إدارة EMC.'
+            },
+            {
+                id: 'design_task2',
+                title: 'مهمة تصميم 2: تهنئة لرئيس الشركة بمناسبة 30 يونيو',
+                description: 'تصميم بطاقة تهنئة رسمية ومناسبة لمعالي رئيس الشركة بمناسبة 30 يونيو، مع مراعاة الألوان الرسمية لـ EMC والخطوط المناسبة. يجب أن تعبر التهنئة عن التقدير والاحترام لدوره في قيادة قطاع الطاقة.',
+                status: 'not-started', // الافتراضي للجديد
+                notes: 'التأكد من دقة تاريخ المناسبة (30 يونيو هو ذكرى ثورة 30 يونيو في مصر، وهي مناسبة وطنية هامة). التحقق من الاسم الصحيح واللقب الكامل لرئيس الشركة. الحفاظ على الطابع الرسمي والمؤسسي للتصميم، مع إمكانية استخدام عناصر وطنية بسيطة (مثل ألوان علم مصر بشكل خفيف ومحترف) إذا كان ذلك مناسباً.',
+                details: {
+                    content: {
+                        keyElements: 'الشعار: شعار EMC واضحاً. صورة الوزير: إذا كان هناك إذن لاستخدامها، يتم وضع صورة صغيرة للوزير بشكل لائق. العبارة الرئيسية للتهنئة: "شركة EMC تتقدم بخالص التهاني لمعالي السيد المهندس/ [اسم رئيس الشركة] بمناسبة الذكرى [رقم] لثورة 30 يونيو المجيدة." نص قصير يعبر عن التقدير: "نتمنى لسيادته دوام التوفيق والسداد في قيادة قطاع البترول والثروة المعدنية نحو المزيد من الازدهار والتقدم. وكل عام وسيادته ومصر بخير وتقدم." التوقيع: "شركة EMC" (يمكن إضافة اسم رئيس مجلس الإدارة أو المدير العام إن أمكن).',
+                        designPrinciples: 'الاحترافية والرسمية: تصميم بسيط ونظيف يعكس الاحترام. الألوان: ألوان هادئة ومناسبة (يمكن استخدام ألوان علم مصر بشكل خفيف أو ألوان EMC). الخطوط: خطوط واضحة وجميلة ذات طابع رسمي.'
+                    },
+                    crewTasks: {
+                        graphicDesigner: 'مصمم جرافيك: مسؤول عن إعداد التصميمات الأولية لبطاقة التهنئة، وتطبيق الملاحظات، وتجهيز الملفات النهائية بجودة عالية (مثل صورة JPEG/PNG أو PDF) جاهزة للعرض أو الطباعة.',
+                        marketingTeam: 'فريق التسويق/العلاقات العامة: مسؤول عن صياغة نص التهنئة الرسمي، وتوفير صورة رئيس الشركة (إذا لزم الأمر)، ومراجعة التصميمات واعتمادها.'
+                    }
+                },
+                expectedOutcome: 'ملف تهنئة نهائي (مثل صورة JPEG/PNG أو PDF) عالي الجودة وجاهز للعرض/الطباعة، ومعتمد من إدارة EMC.'
+            }
+        ];
+
+        let progressChart; 
+
+        // Function to update the progress chart
+        function updateProgressChart() {
+            const completedCount = projectSteps.filter(step => step.status === 'completed').length;
+            const inProgressCount = projectSteps.filter(step => step.status === 'in-progress').length;
+            const notStartedCount = projectSteps.filter(step => step.status === 'not-started').length;
+
+            if (progressChart) {
+                progressChart.data.datasets[0].data = [completedCount, inProgressCount, notStartedCount];
+                progressChart.update();
+            } else {
+                const progressCtx = document.getElementById('progressChart');
+                if (progressCtx) {
+                    progressChart = new Chart(progressCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['تم إنجازه', 'قيد التنفيذ', 'لم يتم بعد'],
+                            datasets: [{
+                                data: [completedCount, inProgressCount, notStartedCount],
+                                backgroundColor: [
+                                    '#22c55e', 
+                                    '#facc15', 
+                                    '#ef4444'  
+                                ],
+                                borderColor: '#ffffff',
+                                borderWidth: 3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        font: {
+                                            family: "'Cairo', sans-serif",
+                                            size: 14
+                                        },
+                                        color: '#334155'
+                                    }
+                                },
+                                tooltip: {
+                                    enabled: true,
+                                    bodyFont: {
+                                        family: "'Cairo', sans-serif"
+                                    },
+                                    titleFont: {
+                                        family: "'Cairo', sans-serif"
+                                    },
+                                    callbacks: {
+                                        label: function(context) {
+                                            let label = context.label || '';
+                                            if (label) {
+                                                label += ': ';
+                                            }
+                                            if (context.parsed !== null) {
+                                                label += context.parsed + ' خطوة';
+                                            }
+                                            return label;
+                                        }
+                                    },
+                                    direction: 'rtl',
+                                    bodyAlign: 'right',
+                                    titleAlign: 'right',
+                                }
+                            }
+                        },
+                    });
+                }
+            }
+        }
+
+        // Function to render project steps
+        function renderProjectSteps() {
+            const stepsContainer = document.getElementById('steps-container');
+            stepsContainer.innerHTML = ''; 
+            projectSteps.forEach(step => {
+                let statusClass = '';
+                let statusText = '';
+                let buttonClasses = 'inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2';
+                let actionButtons = '';
+
+                if (step.status === 'completed') {
+                    statusClass = 'bg-green-100 border-green-300 text-green-800';
+                    statusText = 'تم إنجازه';
+                    actionButtons = `
+                        <button data-step-id="${step.id}" data-status="in-progress" class="${buttonClasses} bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500">
+                            <span class="ml-1">قيد التنفيذ</span>
+                            &#x21BA;
+                        </button>
+                        <button data-step-id="${step.id}" data-status="not-started" class="${buttonClasses} bg-red-600 hover:bg-red-700 focus:ring-red-500">
+                            <span class="ml-1">لم يتم بعد</span>
+                            &#x2716;
+                        </button>
+                    `;
+                } else if (step.status === 'in-progress') {
+                    statusClass = 'bg-yellow-100 border-yellow-300 text-yellow-800';
+                    statusText = 'قيد التنفيذ';
+                    actionButtons = `
+                        <button data-step-id="${step.id}" data-status="completed" class="${buttonClasses} bg-green-600 hover:bg-green-700 focus:ring-green-500">
+                            <span class="ml-1">تم إنجازه</span>
+                            &#x2714;
+                        </button>
+                        <button data-step-id="${step.id}" data-status="not-started" class="${buttonClasses} bg-red-600 hover:bg-red-700 focus:ring-red-500">
+                            <span class="ml-1">لم يتم بعد</span>
+                            &#x2716;
+                        </button>
+                    `;
+                } else { 
+                    statusClass = 'bg-red-100 border-red-300 text-red-800';
+                    statusText = 'لم يتم بعد';
+                    actionButtons = `
+                        <button data-step-id="${step.id}" data-status="in-progress" class="${buttonClasses} bg-blue-600 hover:bg-blue-700 focus:ring-blue-500">
+                            <span class="ml-1">بدء</span>
+                            &#x25B6;
+                        </button>
+                        <button data-step-id="${step.id}" data-status="completed" class="${buttonClasses} bg-green-600 hover:bg-green-700 focus:ring-green-500">
+                            <span class="ml-1">تم إنجازه</span>
+                            &#x2714;
+                        </button>
+                    `;
+                }
+
+                const stepCard = `
+                    <div class="bg-white p-6 rounded-lg shadow-lg border-t-4 ${statusClass} flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-2xl font-bold mb-3 text-blue-900">${step.title}</h3>
+                            <p class="text-slate-700 mb-4">${step.description}</p>
+                            <div class="mb-4 text-slate-600">
+                                <span class="font-semibold">النتائج المتوقعة:</span> ${step.expectedOutcome || 'غير محدد.'}
+                            </div>
+                            <div class="mb-4 text-slate-600">
+                                <span class="font-semibold">تفاصيل المحتوى والتعليق:</span>
+                                <ul class="list-disc pr-6 mt-2 text-sm">
+                                    ${Object.values(step.details.content).map(item => `<li>${item}</li>`).join('')}
+                                </ul>
+                            </div>
+                            <div class="mb-4 text-slate-600">
+                                <span class="font-semibold">مهام طاقم العمل:</span>
+                                <ul class="list-disc pr-6 mt-2 text-sm">
+                                    ${Object.values(step.details.crewTasks).map(item => `<li>${item}</li>`).join('')}
+                                </ul>
+                            </div>
+                            <div class="mb-4 text-slate-600">
+                                <span class="font-semibold">ملاحظات لصانع الفيديو/المصمم:</span> ${step.notes}
+                            </div>
+                        </div>
+                        <div class="mt-auto pt-4 border-t border-slate-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-lg font-semibold">الحالة:</span>
+                                <span class="px-3 py-1 rounded-full text-sm font-medium ${step.status === 'completed' ? 'bg-green-500 text-white' : (step.status === 'in-progress' ? 'bg-yellow-500 text-white' : 'bg-red-500 text-white')}">
+                                    ${statusText}
+                                </span>
+                            </div>
+                            <div class="flex flex-wrap gap-2 justify-end">
+                                ${actionButtons}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                stepsContainer.innerHTML += stepCard;
+            });
+
+            // Add event listeners for status change buttons
+            stepsContainer.querySelectorAll('button[data-step-id]').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const stepId = event.target.dataset.stepId;
+                    const newStatus = event.target.dataset.status;
+                    const stepIndex = projectSteps.findIndex(s => s.id === stepId);
+                    if (stepIndex !== -1) {
+                        projectSteps[stepIndex].status = newStatus;
+                        renderProjectSteps(); 
+                        updateProgressChart(); 
+                    }
+                });
+            });
+        }
+
+        // Initial render on page load
+        renderProjectSteps();
+        updateProgressChart();
+    });
+</script>
+</body>
+</html>
